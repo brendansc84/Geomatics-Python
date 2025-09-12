@@ -6,20 +6,18 @@ from contextlib import contextmanager
 
 # ---------- Runtime paths (EXE-safe) ----------
 def runtime_dir() -> Path:
-    # When frozen (PyInstaller), write beside the EXE; otherwise beside the .py
     if getattr(sys, "frozen", False):
         return Path(sys.executable).parent
     return Path(__file__).parent
 
 RUNTIME_DIR = runtime_dir()
-LOCK_PATH = RUNTIME_DIR / "process_sr.lock"                   # lock beside exe/py
-LOG_PATH  = RUNTIME_DIR / "processed_sr_entryids.json"        # seen cache beside exe/py
+LOCK_PATH = RUNTIME_DIR / "process_sr.lock"
+LOG_PATH  = RUNTIME_DIR / "processed_sr_entryids.json"
 
 LOCK_MAX_AGE_SECS = 15 * 60  # auto-clear stale lock after 15 minutes
 
 @contextmanager
 def single_instance_lock():
-    # Clear stale lock if the previous run crashed or was killed
     try:
         if LOCK_PATH.exists():
             age = time.time() - LOCK_PATH.stat().st_mtime
@@ -51,7 +49,6 @@ MAX_NAME = 150
 
 # SR number anywhere in subject
 SR_SUBJECT_PATTERN = re.compile(r"\bSR\d{8,}\b", re.I)
-# Replies only (you asked to exclude replies, not forwards)
 RE_PREFIX = re.compile(r'^\s*RE\s*(\[\d+\])?\s*:', re.I)
 
 
@@ -62,7 +59,6 @@ TRANS = str.maketrans({c: " " for c in INVALID_FS_CHARS})
 def safe_folder_name(text: str) -> str:
     clean = (text or "").translate(TRANS).strip()
     clean = re.sub(r"\s+", " ", clean)
-    # Windows path safety: trim length and trailing dots/spaces
     return clean[:MAX_NAME].rstrip(" .") or "message"
 
 def safe_file_name(name: str) -> str:
@@ -116,7 +112,7 @@ def save_log(seen: set[str]):
 def save_msg(mail, dest_folder: Path, subject: str):
     fname = safe_folder_name(subject) or "message"
     msg_path = unique_path(dest_folder / f"{fname}.msg")
-    mail.SaveAs(str(msg_path), 3)  # 3 = .msg
+    mail.SaveAs(str(msg_path), 3)
     return msg_path
 
 def save_attachments(mail, dest_folder: Path):
@@ -159,13 +155,13 @@ def process_folder():
 
         items = folder.Items
         items.Sort("[ReceivedTime]", True)
-        items = items.Restrict("[Unread] = True")  # minor speed-up
+        items = items.Restrict("[Unread] = True")
 
         seen = load_log()
         processed = 0
 
         for mail in items:
-            if getattr(mail, "Class", None) != 43:  # 43 = MailItem
+            if getattr(mail, "Class", None) != 43:
                 continue
 
             try:
@@ -178,7 +174,6 @@ def process_folder():
             if not SR_SUBJECT_PATTERN.search(subject):
                 continue
             if RE_PREFIX.search(subject):
-                # Skip replies as requested
                 continue
 
             if entry_id in seen:
